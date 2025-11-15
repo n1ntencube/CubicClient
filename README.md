@@ -6,4 +6,7 @@ Launcher pour accéder aux serveurs de NintenCube.
 - [ ] dl des fichiers automatiquement (pas de serveur encore mis en place)
 - [x] ajouter un slider pour la RAM
 - [x] esthétique
+# screens
+<img width="984" height="625" alt="image" src="https://github.com/user-attachments/assets/9cb95b04-c17d-4c5d-998c-ad961e7f069d" />
+
 
