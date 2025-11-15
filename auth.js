@@ -1,7 +1,7 @@
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args))
 
-const CLIENT_ID = 'd00dadd7-9890-45f1-b00f-93e2f9d7b52f'           // Cubic Launcher (Azure) ne PAS changer cet ID sous peine de défauts sur le launcher
-const SCOPE = 'XboxLive.signin offline_access' // les scopes (en gros le launcher a besoin de quoi)
+const CLIENT_ID = 'd00dadd7-9890-45f1-b00f-93e2f9d7b52f'
+const SCOPE = 'XboxLive.signin offline_access'
 const DEVICE_CODE_URL =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode'
 const TOKEN_URL =

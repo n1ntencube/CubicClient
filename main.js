@@ -108,14 +108,30 @@ ipcMain.handle('launch', async (event, args) => {
       }
     }
 
-    const forgeJar = path.join(versionsDir, 'forge-1.12.2-installer.jar')
     let launchCmd = []
     let launchArgs = []
-    
+
+    const javaCheck = await ensureJavaAvailableLocal()
+    if (!javaCheck.ok) throw new Error('Java not available: ' + (javaCheck.error || 'unknown'))
+    const javaExec = javaCheck.path
+
+    let installedForgeJar = null
     try {
-      await fs.access(forgeJar)
-      console.log('[Launcher] Found Forge, launching with Forge...')
-      launchCmd = 'java'
+      const entries = await fs.readdir(versionsDir).catch(() => [])
+      for (const name of entries) {
+        if (name && name.startsWith('1.12.2-forge')) {
+          const cand = path.join(versionsDir, name, `${name}.jar`)
+          try {
+            await fs.access(cand)
+            installedForgeJar = cand
+            break
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+
+    if (installedForgeJar) {
+      launchCmd = javaExec
       launchArgs = [
         `-Xmx2G`,
         `-Xms1G`,
@@ -123,19 +139,17 @@ ipcMain.handle('launch', async (event, args) => {
         `-Duser.country=US`,
         `-Duser.language=en`,
         `-cp`,
-        `${clientJar};${forgeJar}`,
+        `${clientJar}${path.delimiter}${installedForgeJar}`,
         `net.minecraft.launchwrapper.Launch`,
         `--username=${mcProfile.name}`,
         `--version=1.12.2-forge`,
         `--gameDir=${gameDir}`,
         `--assetsDir=${path.join(gameDir, 'assets')}`,
         `--uuid=${mcProfile.id}`,
-        `--accessToken=${accessToken}`,
         `--userType=mojang`
       ]
-    } catch (e) {
-      console.log('[Launcher] Forge not found, launching vanilla 1.12.2...')
-      launchCmd = 'java'
+    } else {
+      launchCmd = javaExec
       launchArgs = [
         `-Xmx2G`,
         `-Xms1G`,
@@ -180,6 +194,152 @@ ipcMain.handle('launch', async (event, args) => {
 
 const AUTH_FILE = () => path.join(app.getPath('userData'), 'auth.json')
 
+const ACCOUNTS_FILE = () => path.join(app.getPath('userData'), 'accounts.json')
+
+async function readAccountsFile() {
+  try {
+    const file = ACCOUNTS_FILE()
+    const txt = await fs.readFile(file, { encoding: 'utf8' })
+    return JSON.parse(txt)
+  } catch (e) {
+    return { current: null, accounts: [] }
+  }
+}
+
+async function writeAccountsFile(obj) {
+  const file = ACCOUNTS_FILE()
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify(obj, null, 2), { encoding: 'utf8' })
+}
+
+ipcMain.handle('list-accounts', async () => {
+  const data = await readAccountsFile()
+  return data
+})
+
+ipcMain.handle('save-account', async (event, { profile, mc }) => {
+  const data = await readAccountsFile()
+  const idx = data.accounts.findIndex(a => a.profile && a.profile.id === profile.id)
+  const entry = { profile, mc }
+  if (idx >= 0) data.accounts[idx] = entry
+  else data.accounts.push(entry)
+  data.current = profile.id
+  await writeAccountsFile(data)
+  const file = AUTH_FILE()
+  await fs.writeFile(file, JSON.stringify({ profile, mc }, null, 2), { encoding: 'utf8' })
+  return { ok: true }
+})
+
+ipcMain.handle('set-current-account', async (event, profileId) => {
+  const data = await readAccountsFile()
+  const exists = data.accounts.find(a => a.profile && a.profile.id === profileId)
+  if (!exists) throw new Error('Account not found')
+  data.current = profileId
+  await writeAccountsFile(data)
+  const file = AUTH_FILE()
+  await fs.writeFile(file, JSON.stringify(exists, null, 2), { encoding: 'utf8' })
+  return { ok: true }
+})
+
+ipcMain.handle('remove-account', async (event, profileId) => {
+  const data = await readAccountsFile()
+  data.accounts = data.accounts.filter(a => !(a.profile && a.profile.id === profileId))
+  if (data.current === profileId) data.current = data.accounts.length ? data.accounts[0].profile.id : null
+  await writeAccountsFile(data)
+  if (data.current) {
+    const current = data.accounts.find(a => a.profile.id === data.current)
+    await fs.writeFile(AUTH_FILE(), JSON.stringify(current, null, 2), { encoding: 'utf8' })
+  } else {
+    await fs.unlink(AUTH_FILE()).catch(() => {})
+  }
+  return { ok: true }
+})
+
+ipcMain.handle('load-current-account', async () => {
+  try {
+    const txt = await fs.readFile(AUTH_FILE(), { encoding: 'utf8' })
+    return JSON.parse(txt)
+  } catch (e) {
+    return null
+  }
+})
+
+async function findFileRecursive(dir, targetFile) {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name)
+      if (ent.isFile() && ent.name.toLowerCase() === targetFile.toLowerCase()) return full
+      if (ent.isDirectory()) {
+        const found = await findFileRecursive(full, targetFile)
+        if (found) return found
+      }
+    }
+  } catch (e) {
+    return null
+  }
+  return null
+}
+
+async function ensureJavaAvailableLocal() {
+  const { spawnSync, spawn } = require('child_process')
+  const check = spawnSync('java', ['-version'], { windowsHide: true })
+  if (check.status === 0) return { ok: true, path: 'java' }
+
+  try {
+    const runtimeDir = path.join(app.getPath('userData'), 'runtime')
+    await fs.mkdir(runtimeDir, { recursive: true })
+
+    let jreUrl = null
+    let zipName = 'jre.zip'
+    if (process.platform === 'win32' && os.arch() === 'x64') {
+      jreUrl = 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u372-b07/OpenJDK8U-jre_x64_windows_hotspot_8u372b07.zip'
+    } else if (process.platform === 'linux') {
+      jreUrl = 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u372-b07/OpenJDK8U-jre_x64_linux_hotspot_8u372b07.tar.gz'
+      zipName = 'jre.tar.gz'
+    } else if (process.platform === 'darwin') {
+      jreUrl = 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u372-b07/OpenJDK8U-jre_x64_mac_hotspot_8u372b07.tar.gz'
+      zipName = 'jre.tar.gz'
+    } else {
+      throw new Error('Unsupported platform for automatic JRE download')
+    }
+
+    const zipPath = path.join(runtimeDir, zipName)
+    console.log('[Java] Downloading JRE from', jreUrl)
+    await downloadFile(jreUrl, zipPath, (p) => {
+      mainWindow && mainWindow.webContents && mainWindow.webContents.send('install-progress', { status: 'downloading-java', progress: Math.round(p.percent || 0) })
+    })
+
+    console.log('[Java] Extracting JRE')
+    if (process.platform === 'win32') {
+      await new Promise((resolve, reject) => {
+        const ps = spawn('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${runtimeDir}' -Force`], { stdio: 'inherit' })
+        ps.on('close', (c) => c === 0 ? resolve() : reject(new Error('Failed to extract JRE')))
+        ps.on('error', reject)
+      })
+    } else {
+      await new Promise((resolve, reject) => {
+        const t = spawn('tar', ['-xzf', zipPath, '-C', runtimeDir], { stdio: 'inherit' })
+        t.on('close', (c) => c === 0 ? resolve() : reject(new Error('Failed to extract JRE')))
+        t.on('error', reject)
+      })
+    }
+
+    const javaExeName = process.platform === 'win32' ? 'java.exe' : 'java'
+    const found = await findFileRecursive(runtimeDir, javaExeName)
+    if (!found) throw new Error('Java executable not found inside extracted runtime')
+
+    console.log('[Java] Bundled java found at', found)
+    return { ok: true, path: found }
+  } catch (err) {
+    console.error('[Java] ensure-java error:', err)
+    return { ok: false, error: err.message }
+  }
+}
+
+ipcMain.handle('ensure-java', async () => {
+  return await ensureJavaAvailableLocal()
+})
 ipcMain.handle('save-login', async (event, data) => {
   try {
     const file = AUTH_FILE()
@@ -217,13 +377,14 @@ ipcMain.handle('clear-login', async () => {
 async function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const proto = url.startsWith('https') ? https : http
-    const file = require('fs').createWriteStream(destPath)
+    const fsSync = require('fs')
+    const file = fsSync.createWriteStream(destPath)
     
     const requestFile = (requestUrl) => {
       proto.get(requestUrl, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           file.close()
-          require('fs').unlink(destPath, () => {})
+          fsSync.unlink(destPath, () => {})
           return requestFile(response.headers.location)
         }
 
@@ -252,7 +413,7 @@ async function downloadFile(url, destPath, onProgress) {
           resolve()
         })
         file.on('error', (err) => {
-          require('fs').unlink(destPath, () => {})
+          fsSync.unlink(destPath, () => {})
           reject(err)
         })
       }).on('error', reject)
@@ -309,59 +470,114 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
     const gameDir = path.join(os.homedir(), '.cubiclauncher', 'minecraft')
     const versionsDir = path.join(gameDir, 'versions')
     const modsDir = path.join(gameDir, 'mods')
-    
+    const librariesDir = path.join(gameDir, 'libraries')
+
     console.log('[ForgeInstaller] Starting Forge 1.12.2 installation')
     console.log('[ForgeInstaller] Game dir:', gameDir)
-    
+
     await fs.mkdir(versionsDir, { recursive: true })
     await fs.mkdir(modsDir, { recursive: true })
+    await fs.mkdir(librariesDir, { recursive: true })
 
     const forgeVersion = '14.23.5.2860'
     const forgeUrl = `https://files.minecraftforge.net/maven/net/minecraftforge/forge/1.12.2-${forgeVersion}/forge-1.12.2-${forgeVersion}-installer.jar`
     const forgeInstallerPath = path.join(versionsDir, `forge-1.12.2-installer.jar`)
-    
+    const forgeProfileDir = path.join(versionsDir, `1.12.2-forge`)
+    const forgeProfileJar = path.join(forgeProfileDir, `1.12.2-forge.jar`)
+
+    console.log('[ForgeInstaller] Forge URL:', forgeUrl)
     console.log('[ForgeInstaller] Downloading Forge...')
     event.sender.send('install-progress', { status: 'downloading-forge', progress: 0 })
-    
+
     try {
       await downloadFile(forgeUrl, forgeInstallerPath, (progress) => {
-        event.sender.send('install-progress', { 
-          status: 'downloading-forge', 
-          progress: Math.round(progress.percent * 0.1)
+        event.sender.send('install-progress', {
+          status: 'downloading-forge',
+          progress: Math.round(progress.percent || 0)
         })
       })
     } catch (err) {
       console.error('[ForgeInstaller] Forge download failed:', err)
       throw new Error(`Failed to download Forge: ${err.message}`)
     }
-    
-    console.log('[ForgeInstaller] Forge downloaded')
 
-    console.log('[ForgeInstaller] Running Forge installer...')
-    event.sender.send('install-progress', { status: 'installing-forge', progress: 15 })
-    
+    console.log('[ForgeInstaller] Extracting Forge...')
+    event.sender.send('install-progress', { status: 'installing-forge', progress: 40 })
+
+    await fs.mkdir(forgeProfileDir, { recursive: true })
+
     try {
-      await new Promise((resolve, reject) => {
-        const installer = spawn('java', [
-          '-jar',
-          forgeInstallerPath,
-          '--installClient',
-          '--installServer'
-        ], { cwd: gameDir })
+      const AdmZip = require('adm-zip')
+      const zip = new AdmZip(forgeInstallerPath)
+      const extractDir = path.join(versionsDir, '_forge_extract_temp')
+      await fs.mkdir(extractDir, { recursive: true })
+      zip.extractAllTo(extractDir, true)
 
-        installer.on('close', (code) => {
-          if (code === 0) {
-            console.log('[ForgeInstaller] Forge installation complete')
-            resolve()
-          } else {
-            reject(new Error(`Forge installer exited with code ${code}`))
+      const profileJsonPath = path.join(extractDir, 'install_profile.json')
+      let profileJson = null
+      try {
+        const profileContent = await fs.readFile(profileJsonPath, 'utf8')
+        profileJson = JSON.parse(profileContent)
+      } catch (e) {
+        console.warn('[ForgeInstaller] Could not read install_profile.json, creating basic profile')
+      }
+
+      const versionJsonPath = path.join(extractDir, 'version.json')
+      let versionJson = null
+      try {
+        const versionContent = await fs.readFile(versionJsonPath, 'utf8')
+        versionJson = JSON.parse(versionContent)
+      } catch (e) {
+        console.warn('[ForgeInstaller] Could not read version.json')
+      }
+
+      const mavenPath = path.join(extractDir, 'maven')
+      if (mavenPath && await fs.stat(mavenPath).catch(() => null)) {
+        console.log('[ForgeInstaller] Copying maven libraries...')
+        const copyRecursive = async (src, dest) => {
+          await fs.mkdir(dest, { recursive: true })
+          const files = await fs.readdir(src)
+          for (const file of files) {
+            const srcPath = path.join(src, file)
+            const destPath = path.join(dest, file)
+            const stat = await fs.stat(srcPath)
+            if (stat.isDirectory()) {
+              await copyRecursive(srcPath, destPath)
+            } else {
+              await fs.copyFile(srcPath, destPath)
+            }
           }
-        })
+        }
+        await copyRecursive(mavenPath, librariesDir)
+      }
 
-        installer.on('error', reject)
-      })
+      const forgeJsonPath = path.join(forgeProfileDir, '1.12.2-forge.json')
+      const forgeProfileData = {
+        id: '1.12.2-forge',
+        inheritsFrom: '1.12.2',
+        releaseTime: new Date().toISOString(),
+        time: new Date().toISOString(),
+        type: 'release',
+        mainClass: versionJson?.mainClass || 'net.minecraft.launchwrapper.Launch',
+        minecraftArguments: versionJson?.minecraftArguments || '--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type}',
+        libraries: versionJson?.libraries || [],
+        jar: '1.12.2'
+      }
+      await fs.writeFile(forgeJsonPath, JSON.stringify(forgeProfileData, null, 2), 'utf8')
+
+      const forgeClientPath = path.join(extractDir, 'forge-1.12.2-universal.jar')
+      if (forgeClientPath && await fs.stat(forgeClientPath).catch(() => null)) {
+        await fs.copyFile(forgeClientPath, forgeProfileJar)
+        console.log('[ForgeInstaller] Copied Forge client JAR')
+      }
+
+      await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {})
+
+      console.log('[ForgeInstaller] Forge installation complete')
+      event.sender.send('install-progress', { status: 'complete', progress: 100 })
     } catch (err) {
-      throw new Error(`Forge installation failed: ${err.message}`)
+      console.error('[ForgeInstaller] Extraction/setup failed:', err)
+      throw new Error(`Forge setup failed: ${err.message}`)
     }
 
     if (modsUrls && Array.isArray(modsUrls) && modsUrls.length > 0) {
@@ -376,7 +592,7 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
         event.sender.send('install-progress', { 
           status: `downloading-mod-${i + 1}`, 
           modName,
-          progress: 15 + Math.round((i / modsUrls.length) * 85)
+          progress: 40 + Math.round((i / modsUrls.length) * 60)
         })
         
         try {
@@ -384,7 +600,7 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
             event.sender.send('install-progress', {
               status: `downloading-mod-${i + 1}`,
               modName,
-              progress: 15 + Math.round(((i + prog.percent / 100) / modsUrls.length) * 85)
+              progress: 40 + Math.round(((i + prog.percent / 100) / modsUrls.length) * 60)
             })
           })
           console.log(`[ForgeInstaller] Installed: ${modName}`)
@@ -396,8 +612,7 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
     }
 
     console.log('[ForgeInstaller] Installation complete!')
-    event.sender.send('install-progress', { status: 'complete', progress: 100 })
-    return { ok: true, message: 'Forge 1.12.2 and mods installed successfully', modsDir }
+    return { ok: true, message: 'Forge 1.12.2 installed successfully', modsDir }
   } catch (err) {
     console.error('[ForgeInstaller] Error:', err)
     event.sender.send('install-progress', { status: 'error', error: err.message })

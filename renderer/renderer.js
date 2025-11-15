@@ -26,7 +26,7 @@ loginBtn.addEventListener('click', async () => {
     const result = await ipc.invoke('start-oauth')
 
     const { mc, profile } = result
-    await ipc.invoke('save-login', { mc, profile }).catch(() => {})
+    await ipc.invoke('save-account', { mc, profile }).catch(() => {})
 
     window.location.href = 'home.html'
 
