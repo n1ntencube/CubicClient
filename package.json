@@ -1,10 +1,10 @@
 {
   "name": "cubicclient",
   "version": "0.2.0",
-  "description": "Minecraft launcher for Cubic Server",
+  "description": "Client pour accéder au serveurs de NintenCube.",
   "author": {
     "name": "n1ntencube",
-    "email": "contact@nintencube.com"
+    "email": "dev@nintencube.fr"
   },
   "main": "main.js",
   "scripts": {
