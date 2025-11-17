@@ -25,24 +25,21 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "icon": "renderer/img/logo.ico"
+      ]
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "fr.nintencube.cubicclient",
-      "icon": "renderer/img/logo.png"
+      "category": "fr.nintencube.cubicclient"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Game",
-      "icon": "renderer/img/logo.png"
+      "category": "Game"
     },
     "nsis": {
       "oneClick": false,
