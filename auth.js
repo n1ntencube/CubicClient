@@ -1,4 +1,4 @@
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args))
+const fetch = require('node-fetch')
 
 const CLIENT_ID = 'd00dadd7-9890-45f1-b00f-93e2f9d7b52f'
 const SCOPE = 'XboxLive.signin offline_access'
