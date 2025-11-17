@@ -40,12 +40,7 @@ jobs:
         if: success()
         with:
           name: ${{ matrix.os }}-build
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.zip
+          path: dist/**
           if-no-files-found: warn
 
       - name: Release
