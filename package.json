@@ -1,6 +1,11 @@
 {
   "name": "cubicclient",
   "version": "0.2.0",
+  "description": "Minecraft launcher for Cubic Server",
+  "author": {
+    "name": "n1ntencube",
+    "email": "contact@nintencube.com"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
