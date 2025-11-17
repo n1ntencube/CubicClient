@@ -22,6 +22,10 @@
       "preload.js",
       "auth.js",
       "auth_helpers.js",
+      "dbconfig.json",
+      "modsdb.json",
+      "mods_schema.sql",
+      "migrate_required_to_mandatory.sql",
       "renderer/**/*",
       "node_modules/**/*",
       "package.json"
