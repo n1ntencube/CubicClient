@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cubic Launcher</title>
+  <title>Cubic Client - Login</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
-      background: #111;
+      background: #333333;
       color: #eee;
       display: flex;
       flex-direction: column;
@@ -16,6 +16,12 @@
       height: 100vh;
       margin: 0;
       text-align: center;
+      opacity: 0;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
     }
     button {
       background: #3a86ff;
@@ -53,18 +59,12 @@
   </style>
 </head>
 <body>
-  <h1>Cubic Launcher</h1>
-  <p>Connectez vous avec votre compte Microsoft pour accéder aux serveurs de NintenCube.</p>
-  <button id="loginBtn">Se connecter avec Microsoft</button>
-
-  <div id="code-box">
-    <p>Allez sur <a href="https://microsoft.com/link" target="_blank">https://microsoft.com/link</a></p>
-    <p>et entrez ce code:</p>
-    <div id="code"></div>
-  </div>
+  <img src="img/logo.png" alt="Cubic Launcher" width="600" height="60">
+  <button id="loginBtn" data-i18n="loginMicrosoft">Sign in with Microsoft</button>
 
   <div id="profile"></div>
 
+  <script src="languages.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

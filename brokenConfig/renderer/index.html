@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cubic Launcher - Login</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #333333;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+      opacity: 0;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+    button {
+      background: #3a86ff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #265bcc;
+    }
+    #code-box {
+      background: #222;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 20px;
+      display: none;
+    }
+    #code {
+      font-size: 24px;
+      font-weight: bold;
+      color: #3a86ff;
+    }
+    #profile {
+      margin-top: 30px;
+      color: #9f9;
+      display: none;
+    }
+    a {
+      color: #3a86ff;
+    }
+  </style>
+</head>
+<body>
+  <img src="img/logo.png" alt="Cubic Launcher" width="600" height="60">
+  <button id="loginBtn" data-i18n="loginMicrosoft">Sign in with Microsoft</button>
+
+  <div id="profile"></div>
+
+  <script src="languages.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args))
 
-const CLIENT_ID = 'd00dadd7-9890-45f1-b00f-93e2f9d7b52f'           // Cubic Launcher (Azure) ne PAS changer cet ID sous peine de défauts sur le launcher
-const SCOPE = 'XboxLive.signin offline_access' // les scopes (en gros le launcher a besoin de quoi)
+const CLIENT_ID = 'd00dadd7-9890-45f1-b00f-93e2f9d7b52f'
+const SCOPE = 'XboxLive.signin offline_access'
 const DEVICE_CODE_URL =
   'https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode'
 const TOKEN_URL =
@@ -26,7 +26,6 @@ async function getDeviceCode() {
 }
 
 
-// ✅ Step 2: Poll until the user logs in
 async function pollForToken(device_code, interval, expires_in) {
   const start = Date.now()
   while (Date.now() - start < expires_in * 1000) {
@@ -57,7 +56,6 @@ async function pollForToken(device_code, interval, expires_in) {
   throw new Error('auth a été timeout')
 }
 
-// ✅ Step 3: Xbox Live auth
 async function authenticateWithXBL(accessToken) {
   const res = await fetch('https://user.auth.xboxlive.com/user/authenticate', {
     method: 'POST',
@@ -152,9 +150,31 @@ async function getMinecraftProfile(accessToken) {
 }
 
 
+async function exchangeAuthCode(code, redirect_uri) {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri
+    })
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`[Microsoft] Token exchange failed: ${JSON.stringify(data)}`)
+  }
+
+  return data
+}
+
+
 async function launchMinecraft({ mcProfile, accessToken, versionJarPath, gameDir }) {
   console.log('Launching Minecraft for', mcProfile.name)
-  return { ok: true }
+  console.log('Launch details:', { mcProfile, accessToken, versionJarPath, gameDir })
+  return { ok: true, message: 'Minecraft launch request received. Implement actual launcher.' }
 }
 
 module.exports = {
@@ -164,5 +184,8 @@ module.exports = {
   getXSTSToken,
   getMinecraftAccessToken,
   getMinecraftProfile,
-  launchMinecraft
+  launchMinecraft,
+  exchangeAuthCode,
+  CLIENT_ID,
+  SCOPE
 }

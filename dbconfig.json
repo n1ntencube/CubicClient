@@ -1,0 +1,8 @@
+{
+  "host": "tommy.heliohost.org",
+  "port": 3306,
+  "user": "xmuao_launcher",
+  "password": "^44o5n5Hg",
+  "database": "xmuao_lp",
+  "tablePrefix": "luckperms_"
+}

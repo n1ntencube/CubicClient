@@ -1,0 +1,64 @@
+{
+  "name": "cubiclauncher",
+  "version": "0.2.0",
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/n1ntencube/CubicLauncher"
+  },
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "minecraft-launcher-core": "^3.18.2",
+    "mysql2": "^3.15.3",
+    "node-fetch": "^2.6.7",
+    "open": "^8.4.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.9.1",
+    "electron": "latest"
+  },
+  "build": {
+    "appId": "fr.nintencube.cubiclauncher",
+    "productName": "Cubic Launcher",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "auth.js",
+      "auth_helpers.js",
+      "renderer/**/*",
+      "dbconfig.json",
+      "modsdb.json",
+      "mods_schema.sql",
+      "migrate_required_to_mandatory.sql",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

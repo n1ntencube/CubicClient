@@ -7,37 +7,49 @@ console.log('Renderer loaded. electron =', window.electron)
 
 const ipc = window.electron
 
-loginBtn.addEventListener('click', async () => {
-  loginBtn.disabled = true
-  loginBtn.textContent = 'Getting device code...'
+const langManager = new window.LanguageManager()
+
+;(async () => {
+  try {
+    await ipc.invoke('resize-window', { width: 1000, height: 630 })
+  } catch (e) {
+    console.warn('Failed to resize window:', e)
+  }
 
   try {
-    const deviceData = await ipc.invoke('get-device-code')
-
-    codeText.textContent = deviceData.user_code
-    codeBox.style.display = 'block'
-    loginBtn.textContent = 'Waiting for authorization...'
-
-    const { mc, profile } = await ipc.invoke('poll-for-minecraft', deviceData)
-    profileDiv.style.display = 'block'
-    profileDiv.textContent = `Logged in as ${profile.name} (${profile.id})`
-    loginBtn.textContent = 'Launch Minecraft'
-    loginBtn.disabled = false
-
-    loginBtn.onclick = async () => {
-      const result = await ipc.invoke('launch', {
-        mcProfile: profile,
-        accessToken: mc.access_token,
-        versionJarPath: './path/to/your/minecraft.jar',
-        gameDir: './.minecraft'
-      })
-      console.log('Launch result:', result)
+    const saved = await ipc.invoke('load-login')
+    if (saved && saved.profile) {
+      document.body.style.transition = 'opacity 0.3s ease-out'
+      document.body.style.opacity = '0'
+      setTimeout(() => {
+        window.location.href = 'home.html'
+      }, 300)
+      return
     }
+  } catch (e) {
+  }
+})()
+
+loginBtn.addEventListener('click', async () => {
+  loginBtn.disabled = true
+  loginBtn.textContent = 'Waiting for login...'
+
+  try {
+    const result = await ipc.invoke('start-oauth')
+
+    const { mc, profile } = result
+    await ipc.invoke('save-account', { mc, profile }).catch(() => {})
+
+    document.body.style.transition = 'opacity 0.3s ease-out'
+    document.body.style.opacity = '0'
+    setTimeout(() => {
+      window.location.href = 'home.html'
+    }, 300)
 
   } catch (err) {
-    alert('Login failed: ' + err.message)
+    alert('Login failed: ' + (err.message || String(err)))
     console.error(err)
     loginBtn.disabled = false
-    loginBtn.textContent = 'Login with Microsoft'
+    loginBtn.textContent = 'Se connecter avec Microsoft'
   }
 })
