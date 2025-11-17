@@ -36,6 +36,7 @@
   const profileLink = document.getElementById('profileLink')
   const accountSettingsBtn = document.getElementById('accountSettingsBtn')
   const settingsIconBtn = document.getElementById('settingsIconBtn')
+  const modRepositoryBtn = document.getElementById('modRepositoryBtn')
   const logoBtn = document.getElementById('logoBtn')
   const settingsModal = document.getElementById('settingsModal')
   const launcherSettingsModal = document.getElementById('launcherSettingsModal')
@@ -282,6 +283,12 @@
   if (settingsIconBtn) {
     settingsIconBtn.addEventListener('click', () => {
       openLauncherSettingsModal()
+    })
+  }
+
+  if (modRepositoryBtn) {
+    modRepositoryBtn.addEventListener('click', () => {
+      window.location.href = 'modshop.html'
     })
   }
 

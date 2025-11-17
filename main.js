@@ -5,6 +5,7 @@ const https = require('https')
 const fs = require('fs').promises
 const { spawn } = require('child_process')
 const os = require('os')
+const crypto = require('crypto')
 const { Client, Authenticator } = require('minecraft-launcher-core')
 let mysql
 try { mysql = require('mysql2/promise') } catch (e) { console.warn('mysql2 not installed yet') }
@@ -172,36 +173,387 @@ ipcMain.handle('launch', async (event, args) => {
     } catch (e) {
     }
 
-    // Forge universal jar location
     const forgeVersion = '14.23.5.2860'
+    const forgeProfileId = `1.12.2-forge-${forgeVersion}`
+    const forgeProfileDir = path.join(gameDir, 'versions', forgeProfileId)
+    const forgeProfileJar = path.join(forgeProfileDir, `${forgeProfileId}.jar`)
     const forgeUniversalName = `forge-1.12.2-${forgeVersion}-universal.jar`
     const forgeUniversalPath = path.join(gameDir, forgeUniversalName)
     const forgeUniversalUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-${forgeVersion}/${forgeUniversalName}`
 
     let forgeExists = false
     try {
-      await fs.access(forgeUniversalPath)
+      const profileJson = path.join(forgeProfileDir, `${forgeProfileId}.json`)
+      await fs.access(profileJson)
       forgeExists = true
-      console.log(`[Launcher] Found Forge universal JAR: ${forgeUniversalPath}`)
+      console.log(`[Launcher] Using Forge profile ${forgeProfileId}`)
     } catch (e) {
-      console.log('[Launcher] Forge universal JAR missing, will download now...')
+      console.log('[Launcher] Forge profile not found, will download...')
       try {
+        await fs.mkdir(forgeProfileDir, { recursive: true })
+        
         await new Promise((resolve, reject) => {
           https.get(forgeUniversalUrl, (res) => {
             if (res.statusCode !== 200) {
               reject(new Error(`Forge download failed HTTP ${res.statusCode}`))
               return
             }
-            const fileStream = require('fs').createWriteStream(forgeUniversalPath)
+            const fileStream = require('fs').createWriteStream(forgeProfileJar)
             res.pipe(fileStream)
             fileStream.on('finish', () => fileStream.close(resolve))
             fileStream.on('error', reject)
           }).on('error', reject)
         })
+        
+        const forgeProfileData = {
+          id: forgeProfileId,
+          inheritsFrom: '1.12.2',
+          releaseTime: new Date().toISOString(),
+          time: new Date().toISOString(),
+          type: 'release',
+          mainClass: 'net.minecraft.launchwrapper.Launch',
+          minecraftArguments: '--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker',
+          libraries: [
+            {
+              name: 'net.minecraftforge:forge:1.12.2-14.23.5.2860',
+              downloads: {
+                artifact: {
+                  path: `versions/${forgeProfileId}/${forgeProfileId}.jar`,
+                  url: '',
+                  sha1: '',
+                  size: 0
+                }
+              }
+            },
+            {
+              name: 'net.minecraft:launchwrapper:1.12',
+              downloads: {
+                artifact: {
+                  path: 'net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar',
+                  url: 'https://libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar',
+                  sha1: '111e7bea9c968cdb3d06ef4ea43dae71fa27cf3c',
+                  size: 32999
+                }
+              }
+            },
+            {
+              name: 'org.ow2.asm:asm-all:5.2',
+              downloads: {
+                artifact: {
+                  path: 'org/ow2/asm/asm-all/5.2/asm-all-5.2.jar',
+                  url: 'https://libraries.minecraft.net/org/ow2/asm/asm-all/5.2/asm-all-5.2.jar',
+                  sha1: '3354e11e2b34215f06dab629ab88e06aca477c19',
+                  size: 247742
+                }
+              }
+            },
+            {
+              name: 'org.ow2.asm:asm:5.2',
+              downloads: {
+                artifact: {
+                  path: 'org/ow2/asm/asm/5.2/asm-5.2.jar',
+                  url: 'https://maven.minecraftforge.net/org/ow2/asm/asm/5.2/asm-5.2.jar',
+                  sha1: '4ce3ecdc7115bcbf9d4ff4e6ec638e60760819df',
+                  size: 53043
+                }
+              }
+            },
+            {
+              name: 'org.ow2.asm:asm-commons:5.2',
+              downloads: {
+                artifact: {
+                  path: 'org/ow2/asm/asm-commons/5.2/asm-commons-5.2.jar',
+                  url: 'https://maven.minecraftforge.net/org/ow2/asm/asm-commons/5.2/asm-commons-5.2.jar',
+                  sha1: 'adc56f649d9177e99e36e7e6c9a8f9185e6e4a5d',
+                  size: 66393
+                }
+              }
+            },
+            {
+              name: 'org.ow2.asm:asm-tree:5.2',
+              downloads: {
+                artifact: {
+                  path: 'org/ow2/asm/asm-tree/5.2/asm-tree-5.2.jar',
+                  url: 'https://maven.minecraftforge.net/org/ow2/asm/asm-tree/5.2/asm-tree-5.2.jar',
+                  sha1: '368b0c18c3310e5d66039cfb9e9ec393c5bf0d01',
+                  size: 50689
+                }
+              }
+            },
+            {
+              name: 'com.typesafe.akka:akka-actor_2.11:2.3.3',
+              downloads: {
+                artifact: {
+                  path: 'com/typesafe/akka/akka-actor_2.11/2.3.3/akka-actor_2.11-2.3.3.jar',
+                  url: 'https://libraries.minecraft.net/com/typesafe/akka/akka-actor_2.11/2.3.3/akka-actor_2.11-2.3.3.jar',
+                  sha1: '25a0633456c8aafba9b9e8dde736695ca2d1532a',
+                  size: 2476675
+                }
+              }
+            },
+            {
+              name: 'com.typesafe:config:1.2.1',
+              downloads: {
+                artifact: {
+                  path: 'com/typesafe/config/1.2.1/config-1.2.1.jar',
+                  url: 'https://libraries.minecraft.net/com/typesafe/config/1.2.1/config-1.2.1.jar',
+                  sha1: 'f771f71fdae3df231bcd54d5ca2d57f0bf93f467',
+                  size: 219554
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-actors-migration_2.11:1.1.0',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-actors-migration_2.11/1.1.0/scala-actors-migration_2.11-1.1.0.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-actors-migration_2.11/1.1.0/scala-actors-migration_2.11-1.1.0.jar',
+                  sha1: '5f5e4affe0e0c7c6e2f1ea4c7095e9bdac4b65c7',
+                  size: 58171
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-compiler:2.11.1',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-compiler/2.11.1/scala-compiler-2.11.1.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-compiler/2.11.1/scala-compiler-2.11.1.jar',
+                  sha1: '56ea2e6c025e0821f28d73ca271218b8dd04874a',
+                  size: 13449765
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang.plugins:scala-continuations-library_2.11:1.0.2',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/plugins/scala-continuations-library_2.11/1.0.2/scala-continuations-library_2.11-1.0.2.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/plugins/scala-continuations-library_2.11/1.0.2/scala-continuations-library_2.11-1.0.2.jar',
+                  sha1: '53c61e3823e3e2ebc7cb70c20b4b7e90c7cf5c2b',
+                  size: 23868
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang.plugins:scala-continuations-plugin_2.11.1:1.0.2',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/plugins/scala-continuations-plugin_2.11.1/1.0.2/scala-continuations-plugin_2.11.1-1.0.2.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/plugins/scala-continuations-plugin_2.11.1/1.0.2/scala-continuations-plugin_2.11.1-1.0.2.jar',
+                  sha1: 'fef1e0027e6e5ab36fdf50db203fc2ecb85af50d',
+                  size: 206599
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-library:2.11.1',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-library/2.11.1/scala-library-2.11.1.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-library/2.11.1/scala-library-2.11.1.jar',
+                  sha1: '0e11da23da3eabab9f4777b9220e60d44c1aab6a',
+                  size: 5538130
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-parser-combinators_2.11:1.0.1',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-parser-combinators_2.11/1.0.1/scala-parser-combinators_2.11-1.0.1.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-parser-combinators_2.11/1.0.1/scala-parser-combinators_2.11-1.0.1.jar',
+                  sha1: 'f05d7345bf5a58924f2837c6c1f4d73a938e1ff0',
+                  size: 419701
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-reflect:2.11.1',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-reflect/2.11.1/scala-reflect-2.11.1.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-reflect/2.11.1/scala-reflect-2.11.1.jar',
+                  sha1: '6580347e61cc7f8e802941e7fde40fa83b8badeb',
+                  size: 4372467
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-swing_2.11:1.0.1',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-swing_2.11/1.0.1/scala-swing_2.11-1.0.1.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-swing_2.11/1.0.1/scala-swing_2.11-1.0.1.jar',
+                  sha1: 'b1cdd92bd47b1e1837139c1c53020e86bb9112ae',
+                  size: 726500
+                }
+              }
+            },
+            {
+              name: 'org.scala-lang:scala-xml_2.11:1.0.2',
+              downloads: {
+                artifact: {
+                  path: 'org/scala-lang/scala-xml_2.11/1.0.2/scala-xml_2.11-1.0.2.jar',
+                  url: 'https://libraries.minecraft.net/org/scala-lang/scala-xml_2.11/1.0.2/scala-xml_2.11-1.0.2.jar',
+                  sha1: '820fbca7e524b530fdadc594c39d49a21ea0337e',
+                  size: 648679
+                }
+              }
+            },
+            {
+              name: 'lzma:lzma:0.0.1',
+              downloads: {
+                artifact: {
+                  path: 'lzma/lzma/0.0.1/lzma-0.0.1.jar',
+                  url: 'https://libraries.minecraft.net/lzma/lzma/0.0.1/lzma-0.0.1.jar',
+                  sha1: '521616dc7487b42bef0e803bd2fa3faf668101d7',
+                  size: 5762
+                }
+              }
+            },
+            {
+              name: 'java3d:vecmath:1.5.2',
+              downloads: {
+                artifact: {
+                  path: 'java3d/vecmath/1.5.2/vecmath-1.5.2.jar',
+                  url: 'https://libraries.minecraft.net/java3d/vecmath/1.5.2/vecmath-1.5.2.jar',
+                  sha1: '79846ba34cbd89e2422d74d53752f993dcc2ccaf',
+                  size: 318956
+                }
+              }
+            },
+            {
+              name: 'net.sf.trove4j:trove4j:3.0.3',
+              downloads: {
+                artifact: {
+                  path: 'net/sf/trove4j/trove4j/3.0.3/trove4j-3.0.3.jar',
+                  url: 'https://libraries.minecraft.net/net/sf/trove4j/trove4j/3.0.3/trove4j-3.0.3.jar',
+                  sha1: '42ccaf4761f0dfdfa805c9e340d99a755907e2dd',
+                  size: 2523218
+                }
+              }
+            },
+            {
+              name: 'com.mojang:authlib:1.5.25',
+              downloads: {
+                artifact: {
+                  path: 'com/mojang/authlib/1.5.25/authlib-1.5.25.jar',
+                  url: 'https://libraries.minecraft.net/com/mojang/authlib/1.5.25/authlib-1.5.25.jar',
+                  sha1: '9834cdf236c22e84b946bba989e2f94ef5897c3c',
+                  size: 64227
+                }
+              }
+            },
+            {
+              name: 'net.sf.jopt-simple:jopt-simple:5.0.3',
+              downloads: {
+                artifact: {
+                  path: 'net/sf/jopt-simple/jopt-simple/5.0.3/jopt-simple-5.0.3.jar',
+                  url: 'https://libraries.minecraft.net/net/sf/jopt-simple/jopt-simple/5.0.3/jopt-simple-5.0.3.jar',
+                  sha1: 'cdd846cfc4e0f7eefafc02c0f5dce32b9303aa2a',
+                  size: 78175
+                }
+              }
+            },
+            {
+              name: 'com.google.guava:guava:21.0',
+              downloads: {
+                artifact: {
+                  path: 'com/google/guava/guava/21.0/guava-21.0.jar',
+                  url: 'https://libraries.minecraft.net/com/google/guava/guava/21.0/guava-21.0.jar',
+                  sha1: '3a3d111be1be1b745edfa7d91678a12d7ed38709',
+                  size: 2521113
+                }
+              }
+            },
+            {
+              name: 'org.apache.commons:commons-lang3:3.5',
+              downloads: {
+                artifact: {
+                  path: 'org/apache/commons/commons-lang3/3.5/commons-lang3-3.5.jar',
+                  url: 'https://libraries.minecraft.net/org/apache/commons/commons-lang3/3.5/commons-lang3-3.5.jar',
+                  sha1: '6c6c702c89bfff3cd9e80b04d668c5e190d588c6',
+                  size: 479881
+                }
+              }
+            },
+            {
+              name: 'commons-io:commons-io:2.5',
+              downloads: {
+                artifact: {
+                  path: 'commons-io/commons-io/2.5/commons-io-2.5.jar',
+                  url: 'https://libraries.minecraft.net/commons-io/commons-io/2.5/commons-io-2.5.jar',
+                  sha1: '2852e6e05fbb95076fc091f6d1780f1f8fe35e0f',
+                  size: 208683
+                }
+              }
+            },
+            {
+              name: 'commons-codec:commons-codec:1.10',
+              downloads: {
+                artifact: {
+                  path: 'commons-codec/commons-codec/1.10/commons-codec-1.10.jar',
+                  url: 'https://libraries.minecraft.net/commons-codec/commons-codec/1.10/commons-codec-1.10.jar',
+                  sha1: '4b95f4897fa13f2cd904aee711aeafc0c5295cd8',
+                  size: 284184
+                }
+              }
+            },
+            {
+              name: 'com.google.code.gson:gson:2.8.0',
+              downloads: {
+                artifact: {
+                  path: 'com/google/code/gson/gson/2.8.0/gson-2.8.0.jar',
+                  url: 'https://libraries.minecraft.net/com/google/code/gson/gson/2.8.0/gson-2.8.0.jar',
+                  sha1: 'c4ba5371a29ac9b2ad6129b1d39ea38750043eff',
+                  size: 231952
+                }
+              }
+            },
+            {
+              name: 'org.apache.logging.log4j:log4j-api:2.8.1',
+              downloads: {
+                artifact: {
+                  path: 'org/apache/logging/log4j/log4j-api/2.8.1/log4j-api-2.8.1.jar',
+                  url: 'https://libraries.minecraft.net/org/apache/logging/log4j/log4j-api/2.8.1/log4j-api-2.8.1.jar',
+                  sha1: 'e801d13612e22cad62a3f4f3fe7fdbe6334a8e72',
+                  size: 232371
+                }
+              }
+            },
+            {
+              name: 'org.apache.logging.log4j:log4j-core:2.8.1',
+              downloads: {
+                artifact: {
+                  path: 'org/apache/logging/log4j/log4j-core/2.8.1/log4j-core-2.8.1.jar',
+                  url: 'https://libraries.minecraft.net/org/apache/logging/log4j/log4j-core/2.8.1/log4j-core-2.8.1.jar',
+                  sha1: '4ac28ff2f1ddf05dae3043a190451e8c46b73c31',
+                  size: 1150301
+                }
+              }
+            },
+            {
+              name: 'org.apache.maven:maven-artifact:3.5.3',
+              downloads: {
+                artifact: {
+                  path: 'org/apache/maven/maven-artifact/3.5.3/maven-artifact-3.5.3.jar',
+                  url: 'https://libraries.minecraft.net/org/apache/maven/maven-artifact/3.5.3/maven-artifact-3.5.3.jar',
+                  sha1: '7dc72b6d6d8a6dced3d294ed54c2cc3515ade9f4',
+                  size: 54961
+                }
+              }
+            }
+          ],
+          jar: '1.12.2'
+        }
+        
+        const profileJson = path.join(forgeProfileDir, `${forgeProfileId}.json`)
+        await fs.writeFile(profileJson, JSON.stringify(forgeProfileData, null, 2), 'utf8')
         forgeExists = true
-        console.log('[Launcher] Forge universal JAR downloaded successfully.')
+        console.log('[Launcher] Forge profile created successfully.')
       } catch (err) {
-        console.error('[Launcher] Failed to download Forge universal JAR:', err)
+        console.error('[Launcher] Failed to set up Forge:', err)
       }
     }
     
@@ -218,14 +570,21 @@ ipcMain.handle('launch', async (event, args) => {
       },
       root: gameDir,
       version: {
-        number: '1.12.2',
+        number: forgeExists ? forgeProfileId : '1.12.2',
         type: 'release'
       },
-      forge: forgeExists ? forgeUniversalPath : undefined,
       memory: {
         max: '2G',
         min: '1G'
+      },
+      overrides: {
+        detached: false
       }
+    }
+
+    console.log('[Launcher] Launching version:', forgeExists ? forgeProfileId : '1.12.2')
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('minecraft-log', { text: `[Launcher] Starting Minecraft ${forgeExists ? 'with Forge ' + forgeVersion : '1.12.2 (Vanilla)'}...` })
     }
 
     if (mainWindow && mainWindow.webContents) {
@@ -285,7 +644,6 @@ ipcMain.handle('launch', async (event, args) => {
       launcherClient = null
     })
 
-    console.log('[Launcher] Launch options:', JSON.stringify(launchOptions, null, 2))
     launcherClient.launch(launchOptions)
 
     console.log('[Launcher] Launch initiated')
@@ -531,6 +889,73 @@ async function downloadFile(url, destPath, onProgress) {
   })
 }
 
+async function calculateSHA1(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha1')
+    const stream = require('fs').createReadStream(filePath)
+    
+    stream.on('data', chunk => hash.update(chunk))
+    stream.on('end', () => resolve(hash.digest('hex')))
+    stream.on('error', reject)
+  })
+}
+
+async function downloadFileWithChecksum(url, destPath, expectedSha1, onProgress, maxRetries = 3) {
+  const fsSync = require('fs')
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Download] Attempt ${attempt}/${maxRetries}: ${path.basename(destPath)}`)
+      
+      await downloadFile(url, destPath, onProgress)
+      
+      if (!expectedSha1) {
+        console.log(`[Download] No checksum provided for ${path.basename(destPath)}, skipping verification`)
+        return
+      }
+      
+      console.log(`[Download] Verifying checksum for ${path.basename(destPath)}...`)
+      const actualSha1 = await calculateSHA1(destPath)
+      
+      if (actualSha1.toLowerCase() === expectedSha1.toLowerCase()) {
+        console.log(`[Download] ✓ Checksum verified: ${path.basename(destPath)}`)
+        return
+      }
+      
+      console.warn(`[Download] ✗ Checksum mismatch for ${path.basename(destPath)}`)
+      console.warn(`[Download]   Expected: ${expectedSha1}`)
+      console.warn(`[Download]   Got:      ${actualSha1}`)
+      
+      try {
+        fsSync.unlinkSync(destPath)
+        console.log(`[Download] Deleted corrupted file`)
+      } catch (e) {
+        console.error(`[Download] Failed to delete corrupted file:`, e)
+      }
+      
+      if (attempt < maxRetries) {
+        console.log(`[Download] Retrying download...`)
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)) // Exponential backoff
+      } else {
+        throw new Error(`Checksum verification failed after ${maxRetries} attempts. Expected: ${expectedSha1}, Got: ${actualSha1}. The file may be corrupted on the server.`)
+      }
+    } catch (err) {
+      try {
+        if (fsSync.existsSync(destPath)) {
+          fsSync.unlinkSync(destPath)
+        }
+      } catch (e) {}
+      
+      if (attempt >= maxRetries) {
+        throw err
+      }
+      
+      console.error(`[Download] Attempt ${attempt} failed:`, err.message)
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+    }
+  }
+}
+
 const MOD_PACKS = {
   'vanilla': { name: 'Vanilla', mods: [] },
   'skyblock': { 
@@ -582,11 +1007,24 @@ ipcMain.handle('get-nintencube-mods', async () => {
       return { ok: true, mods: [] }
     }
 
-    const [rows] = await pool.query(
-      'SELECT mod_name, mod_url, mod_version, enabled, required FROM mods WHERE enabled = 1 ORDER BY mod_name'
-    )
+    // Check for mandatory or required column
+    const [columns] = await pool.query("SHOW COLUMNS FROM mods")
+    const columnNames = columns.map(col => col.Field)
+    const hasMandatory = columnNames.includes('mandatory')
+    const hasRequired = columnNames.includes('required')
     
-    console.log(`[NintenCube] Found ${rows.length} enabled mods in database`)
+    let query = 'SELECT mod_name, mod_url, mod_version, enabled'
+    if (hasMandatory) {
+      query += ', mandatory as required FROM mods WHERE enabled = 1 AND mandatory = 1 ORDER BY mod_name'
+    } else if (hasRequired) {
+      query += ', required FROM mods WHERE enabled = 1 AND required = 1 ORDER BY mod_name'
+    } else {
+      query += ', 0 as required FROM mods WHERE enabled = 1 ORDER BY mod_name'
+    }
+
+    const [rows] = await pool.query(query)
+    
+    console.log(`[NintenCube] Found ${rows.length} enabled mandatory mods in database`)
     
     const mods = rows.map(row => ({
       name: row.mod_name,
@@ -599,6 +1037,77 @@ ipcMain.handle('get-nintencube-mods', async () => {
   } catch (err) {
     console.error('[NintenCube] Database error:', err)
     return { ok: false, mods: [], error: err.message }
+  }
+})
+
+// Mod Repository handlers
+ipcMain.handle('get-all-mods', async () => {
+  try {
+    console.log('[ModRepository] Fetching all mods from database')
+    const pool = await getModsDbPool()
+    if (!pool) {
+      console.warn('[ModRepository] Database connection not available')
+      return { ok: false, mods: [], error: 'Database not configured' }
+    }
+
+    // Check for mandatory or required column
+    const [columns] = await pool.query("SHOW COLUMNS FROM mods")
+    const columnNames = columns.map(col => col.Field)
+    console.log('[ModRepository] Available columns:', columnNames)
+    
+    const hasMandatory = columnNames.includes('mandatory')
+    const hasRequired = columnNames.includes('required')
+    
+    let query = 'SELECT id, mod_name, mod_url, mod_version, enabled, description'
+    if (hasMandatory) {
+      query += ', mandatory FROM mods ORDER BY mandatory DESC, mod_name'
+    } else if (hasRequired) {
+      query += ', required as mandatory FROM mods ORDER BY required DESC, mod_name'
+    } else {
+      query += ', 0 as mandatory FROM mods ORDER BY mod_name'
+    }
+    
+    console.log('[ModRepository] Executing query:', query)
+    const [rows] = await pool.query(query)
+    
+    console.log(`[ModRepository] Found ${rows.length} total mods in database`)
+    
+    const mods = rows.map(row => ({
+      id: row.id,
+      name: row.mod_name,
+      url: row.mod_url,
+      version: row.mod_version,
+      enabled: Boolean(row.enabled),
+      mandatory: Boolean(row.mandatory),
+      description: row.description || ''
+    }))
+    
+    return { ok: true, mods }
+  } catch (err) {
+    console.error('[ModRepository] Database error:', err)
+    console.error('[ModRepository] Error stack:', err.stack)
+    return { ok: false, mods: [], error: err.message }
+  }
+})
+
+ipcMain.handle('install-mod', async (event, { modUrl, modName }) => {
+  try {
+    console.log(`[ModRepository] Installing mod: ${modName} from ${modUrl}`)
+    const modsDir = path.join(app.getPath('appData'), '.cubiclauncher', 'minecraft', 'mods')
+    await fs.mkdir(modsDir, { recursive: true })
+    
+    const fileName = path.basename(new URL(modUrl).pathname)
+    const modPath = path.join(modsDir, fileName)
+    
+    await downloadFileWithChecksum(modUrl, modPath, null, (progress) => {
+      console.log(`[ModRepository] Download progress: ${progress.percent}%`)
+    })
+    
+    console.log(`[ModRepository] Successfully installed: ${fileName}`)
+    return { ok: true, fileName }
+  } catch (err) {
+    console.error('[ModRepository] Error installing mod:', err)
+    return { ok: false, error: err.message }
   }
 })
 
@@ -630,16 +1139,41 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
     }
 
     if (!forgeExists) {
-      // Download universal JAR directly instead of installer
       const forgeUniversalUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/1.12.2-${forgeVersion}/forge-1.12.2-${forgeVersion}-universal.jar`
+      const forgeChecksumUrl = `${forgeUniversalUrl}.sha1`
       console.log('[ForgeInstaller] Forge URL:', forgeUniversalUrl)
+      console.log('[ForgeInstaller] Downloading Forge checksum...')
+      
+      let expectedSha1 = null
+      try {
+        expectedSha1 = await new Promise((resolve, reject) => {
+          https.get(forgeChecksumUrl, (res) => {
+            if (res.statusCode === 200) {
+              let data = ''
+              res.on('data', chunk => data += chunk)
+              res.on('end', () => resolve(data.trim().split(' ')[0])) // Maven format: "hash filename"
+            } else {
+              resolve(null) // Checksum not available
+            }
+          }).on('error', () => resolve(null))
+        })
+        
+        if (expectedSha1) {
+          console.log('[ForgeInstaller] Found checksum:', expectedSha1)
+        } else {
+          console.warn('[ForgeInstaller] No checksum available, will download without verification')
+        }
+      } catch (err) {
+        console.warn('[ForgeInstaller] Could not fetch checksum:', err.message)
+      }
+      
       console.log('[ForgeInstaller] Downloading Forge universal JAR...')
       event.sender.send('install-progress', { status: 'downloading-forge', progress: 0 })
 
       await fs.mkdir(forgeProfileDir, { recursive: true })
 
       try {
-        await downloadFile(forgeUniversalUrl, forgeProfileJar, (progress) => {
+        await downloadFileWithChecksum(forgeUniversalUrl, forgeProfileJar, expectedSha1, (progress) => {
           console.log(`[ForgeInstaller] Download progress: ${progress.percent}%`)
           event.sender.send('install-progress', {
             status: 'downloading-forge',
@@ -660,9 +1194,10 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
       const launchWrapperPath = path.join(launchWrapperDir, 'launchwrapper-1.12.jar')
       
       try {
-        await downloadFile(
+        await downloadFileWithChecksum(
           'https://libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar',
           launchWrapperPath,
+          '111e7bea9c968cdb3d06ef4ea43dae71fa27cf3c', // Known SHA1 for launchwrapper 1.12
           (progress) => {
             event.sender.send('install-progress', {
               status: 'downloading-forge',
@@ -719,7 +1254,7 @@ ipcMain.handle('install-forge-mods', async (event, { modsUrls, onProgress }) => 
         })
         
         try {
-          await downloadFile(modUrl, modPath, (prog) => {
+          await downloadFileWithChecksum(modUrl, modPath, null, (prog) => {
             event.sender.send('install-progress', {
               status: `downloading-mod-${i + 1}`,
               modName,
@@ -922,6 +1457,7 @@ ipcMain.handle('download-minecraft', async (event, { version }) => {
     }
 
     const clientJarUrl = versionJson.downloads.client.url
+    const clientJarSha1 = versionJson.downloads.client.sha1
     const clientJarPath = path.join(versionsDir, `${targetVersion}`, `${targetVersion}.jar`)
     
     console.log(`[Minecraft] Creating version directory...`)
@@ -931,7 +1467,7 @@ ipcMain.handle('download-minecraft', async (event, { version }) => {
     event.sender.send('install-progress', { status: 'downloading-minecraft', progress: 20 })
     
     try {
-      await downloadFile(clientJarUrl, clientJarPath, (progress) => {
+      await downloadFileWithChecksum(clientJarUrl, clientJarPath, clientJarSha1, (progress) => {
         event.sender.send('install-progress', {
           status: 'downloading-minecraft',
           progress: 20 + Math.round(progress.percent * 0.6)
@@ -954,11 +1490,12 @@ ipcMain.handle('download-minecraft', async (event, { version }) => {
         if (!lib.downloads || !lib.downloads.artifact) continue
         
         const libUrl = lib.downloads.artifact.url
+        const libSha1 = lib.downloads.artifact.sha1
         const libPath = path.join(librariesDir, lib.downloads.artifact.path)
         
         try {
           await fs.mkdir(path.dirname(libPath), { recursive: true })
-          await downloadFile(libUrl, libPath, () => {})
+          await downloadFileWithChecksum(libUrl, libPath, libSha1, () => {})
           libCount++
         } catch (err) {
           console.warn(`[Minecraft] Failed to download library ${lib.name}: ${err.message}`)
