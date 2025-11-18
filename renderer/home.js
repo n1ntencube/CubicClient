@@ -118,9 +118,16 @@
   let skinUrl = ''
   try {
     skinUrl = `https://crafatar.com/avatars/${profile.id}?size=64`
-    if (skinImg) skinImg.src = skinUrl
+    if (skinImg) {
+      skinImg.src = skinUrl
+      skinImg.onerror = () => {
+        console.warn('Failed to load avatar from crafatar, using fallback')
+        skinImg.src = 'img/logo_cl_small.png'
+      }
+    }
   } catch (err) {
     console.error('Failed to load skin:', err)
+    if (skinImg) skinImg.src = 'img/logo_cl_small.png'
   }
 
   async function loadRank() {
@@ -352,7 +359,8 @@
         left.style.gap = '10px'
 
         const avatar = document.createElement('img')
-        avatar.src = a.profile && a.profile.id ? `https://crafatar.com/avatars/${a.profile.id}?size=48` : 'profile.png'
+        avatar.src = a.profile && a.profile.id ? `https://crafatar.com/avatars/${a.profile.id}?size=48` : 'img/logo_cl_small.png'
+        avatar.onerror = () => { avatar.src = 'img/logo_cl_small.png' }
         avatar.style.width = '40px'
         avatar.style.height = '40px'
         avatar.style.borderRadius = '8px'

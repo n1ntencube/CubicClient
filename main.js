@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const http = require('http')
 const https = require('https')
@@ -66,8 +67,20 @@ ipcMain.handle('get-user-rank', async (_event, payload) => {
   try {
     const pool = await getDbPool()
     const configPath = path.join(__dirname, 'dbconfig.json')
-    const raw = await fs.readFile(configPath, 'utf8')
-    const cfg = JSON.parse(raw)
+    let raw
+    try {
+      raw = await fs.readFile(configPath, 'utf8')
+    } catch (readErr) {
+      console.error('[Rank] Failed to read dbconfig.json:', readErr.message)
+      return { ok: false, rank: null, error: 'Config file not found', debug: { readError: readErr.message } }
+    }
+    let cfg
+    try {
+      cfg = JSON.parse(raw)
+    } catch (parseErr) {
+      console.error('[Rank] Failed to parse dbconfig.json:', parseErr.message)
+      return { ok: false, rank: null, error: 'Config file invalid', debug: { parseError: parseErr.message } }
+    }
     const prefix = cfg.tablePrefix || 'luckperms_'
     let queryTried = []
     let rank = null
@@ -118,9 +131,67 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer/loading.html'))
 }
 
-app.whenReady().then(createWindow)
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info.version)
+  mainWindow.webContents.send('update-available', info)
+})
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Update not available')
+})
+
+autoUpdater.on('download-progress', (progressObj) => {
+  console.log('Download progress:', progressObj.percent)
+  mainWindow.webContents.send('update-download-progress', progressObj)
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info.version)
+  mainWindow.webContents.send('update-downloaded', info)
+})
+
+autoUpdater.on('error', (err) => {
+  console.error('Auto-updater error:', err)
+})
+
+app.whenReady().then(() => {
+  createWindow()
+  if (!app.isPackaged) {
+    console.log('Running in dev mode - skipping update check')
+  } else {
+    setTimeout(() => autoUpdater.checkForUpdates(), 3000)
+  }
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return result
+  } catch (err) {
+    console.error('Check for updates error:', err)
+    throw err
+  }
+})
+
+ipcMain.handle('download-update', async () => {
+  try {
+    await autoUpdater.downloadUpdate()
+    return { success: true }
+  } catch (err) {
+    console.error('Download update error:', err)
+    throw err
+  }
+})
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall(false, true)
 })
 
 

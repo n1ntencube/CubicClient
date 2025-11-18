@@ -139,7 +139,22 @@
     })
   }
 
+  ipc.on('update-available', (info) => {
+    console.log('Update available:', info.version)
+    updateStatus(`Update ${info.version} available - downloading...`)
+  })
+
+  ipc.on('update-download-progress', (progressObj) => {
+    const percent = Math.round(progressObj.percent)
+    updateStatus(`Downloading update: ${percent}%`)
+  })
+
+  ipc.on('update-downloaded', (info) => {
+    updateStatus(`Update ${info.version} ready - will install on quit`)
+  })
+
   setTimeout(() => {
     performChecks()
   }, 500)
 })()
+
