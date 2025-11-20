@@ -46,6 +46,14 @@ dist/
 *-latest-build/
 *.zip
 
+# Build directory - allow assets but ignore generated files
+!build/
+build/*.exe
+build/*.msi
+build/*.dmg
+build/*.AppImage
+build/*.deb
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

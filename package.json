@@ -53,8 +53,18 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "displayLanguageSelector": false,
+      "include": "build/installer.nsh",
+      "warningsAsErrors": false,
+      "menuCategory": true,
+      "shortcutName": "CubicLauncher",
+      "uninstallDisplayName": "CubicLauncher - Minecraft Launcher"
     },
     "publish": [
       {
